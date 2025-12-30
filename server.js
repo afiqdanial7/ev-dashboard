@@ -7,41 +7,38 @@ const path = require('path');
 // Create an Express application
 const app = express();
 
-// Railway (and most clouds) assigns a specific port via environment variable.
-// If that variable is missing (like on your laptop), it falls back to 3000.
+// Render assigns a specific port. If missing, fallback to 3000.
 const port = process.env.PORT || 3000;
 
-// Enable CORS (Cross-Origin Resource Sharing)
+// Enable CORS
 app.use(cors());
 
-// Serve the HTML file from the project directory
+// Serve the HTML file and static assets from the project directory
 app.use(express.static(__dirname));
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// --- DATABASE CONNECTION CONFIGURATION (UPDATED FOR RAILWAY) ---
+// --- DATABASE CONNECTION CONFIGURATION ---
 
-// Check if we are in a production environment (Railway)
+// Check if we are in a production environment (Render)
 const isProduction = process.env.NODE_ENV === 'production';
 
-// If we have a cloud database URL (from Railway), use it.
-// Otherwise, use your local fallback string.
+// If we have a cloud database URL (from Render), use it.
 const connectionString = process.env.DATABASE_URL 
   ? process.env.DATABASE_URL 
   : 'postgresql://postgres:user@localhost:5432/ev_dashboard'; 
 
 const pool = new Pool({
   connectionString: connectionString,
-  // Railway requires SSL for database connections.
-  // We disable 'rejectUnauthorized' to allow the connection to succeed with Railway's self-signed certs.
+  // Render requires SSL. We disable 'rejectUnauthorized' for self-signed certs.
   ssl: isProduction ? { rejectUnauthorized: false } : false
 });
 
 // -------------------------------------------------------------
 
-// A SINGLE, ROBUST API ENDPOINT to get all data
+// API ENDPOINT
 app.get('/api/data', async (req, res) => {
   try {
     // Query for the EV Registrations chart
@@ -97,8 +94,7 @@ app.get('/api/data', async (req, res) => {
   } catch (err) {
     console.error('--- SEVERE DATABASE ERROR ---');
     console.error(err);
-    console.error('--- END OF ERROR ---');
-    res.status(500).send('A critical error occurred while fetching data from the database.');
+    res.status(500).send('A critical error occurred while fetching data.');
   }
 });
 

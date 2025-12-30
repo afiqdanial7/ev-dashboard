@@ -226,7 +226,10 @@
             setupForecastSlider();
 
             try {
-                const response = await fetch('http://localhost:3000/api/data');
+                // FIXED: Changed from 'http://localhost:3000/api/data' to '/api/data'
+                // This allows it to work on Render, localhost, or anywhere automatically.
+                const response = await fetch('/api/data');
+                
                 if (!response.ok) throw new Error(`Server returned an error: ${response.status}`);
                 const data = await response.json();
                 allRegistrationData = data.chartData;
@@ -261,18 +264,13 @@
             if (combinedChart) updateCombinedChart(); 
             if (map) updateMap();
             updateForecastKPIs();
-            // ADDED: Call the Market Leader Logic
             updateMarketLeader();
         }
 
-        // ADDED: Logic for Market Leader (Option 5)
         function updateMarketLeader() {
             const state = document.getElementById('state-filter').value;
             const brandFilter = document.getElementById('brand-filter').value;
 
-            // 1. Get relevant data based on current filters
-            // Note: If a user filters for "BYD", BYD will obviously be 100% leader. 
-            // This is intended behavior for "What is the leader in THIS view?"
             const relevantData = allRegistrationData.filter(d => 
                 (state === 'All' || d.state === state) && 
                 (brandFilter === 'All' || d.brand === brandFilter)
@@ -284,7 +282,6 @@
                  return;
             }
 
-            // 2. Count by brand
             const brandCounts = {};
             let totalCount = 0;
             relevantData.forEach(d => {
@@ -294,7 +291,6 @@
                 totalCount += count;
             });
 
-            // 3. Find Max
             let maxBrand = "";
             let maxCount = 0;
 
@@ -305,7 +301,6 @@
                 }
             }
 
-            // 4. Update DOM
             const share = totalCount > 0 ? ((maxCount / totalCount) * 100).toFixed(1) : 0;
             document.getElementById('kpi-leader-name').textContent = maxBrand;
             document.getElementById('kpi-leader-share').textContent = `${share}%`;
