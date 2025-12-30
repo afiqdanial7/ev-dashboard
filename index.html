@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV Growth Monitoring System - Malaysia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#0f172a', surface: '#1e293b', border: '#334155',
+                        primary: '#38bdf8', accent: '#facc15', success: '#22c55e', danger: '#ef4444', muted: '#94a3b8'
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .dashboard-card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
+        
+        .map-popup-link { display: block; margin-top: 4px; color: #0ea5e9; text-decoration: none; font-weight: 600; font-size: 12px; }
+        .map-popup-link:hover { text-decoration: underline; color: #0284c7; }
+        .leaflet-popup-content-wrapper { background: #ffffff; color: #0f172a; border: 1px solid #ccc; border-radius: 8px; }
+        .leaflet-popup-tip { background: #ffffff; }
+        .leaflet-container { background: #0f172a !important; border-radius: 0.5rem; }
+
+        /* --- SLIDER SYSTEM --- */
+        .range-container { position: relative; width: 100%; height: 30px; }
+        .slider-track { position: absolute; top: 50%; transform: translateY(-50%); width: 100%; height: 4px; background-color: #334155; border-radius: 2px; z-index: 1; }
+        .range-input { position: absolute; pointer-events: none; -webkit-appearance: none; width: 100%; height: 100%; top: 0; left: 0; background: none; z-index: 3; }
+        .range-input.single { pointer-events: auto; cursor: pointer; }
+        .range-input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; cursor: pointer; margin-top: -6px; box-shadow: 0 0 0 2px #0f172a; }
+        .range-input::-moz-range-thumb { pointer-events: auto; width: 16px; height: 16px; border: none; border-radius: 50%; cursor: pointer; box-shadow: 0 0 0 2px #0f172a; }
+        .range-input.blue::-webkit-slider-thumb { background-color: #38bdf8; border: 2px solid #0f172a; }
+        .range-input.blue::-moz-range-thumb { background-color: #38bdf8; border: 2px solid #0f172a; }
+        .slider-highlight.blue { background-color: #38bdf8; height: 4px; position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; opacity: 0.8; }
+        .range-input.yellow::-webkit-slider-thumb { background-color: #facc15; border: 2px solid #0f172a; }
+        .range-input.yellow::-moz-range-thumb { background-color: #facc15; border: 2px solid #0f172a; }
+        .slider-highlight.yellow { background-color: #facc15; height: 4px; position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; opacity: 0.8; }
+
+        /* Form Selects */
+        .select-wrapper { position: relative; }
+        .select-wrapper .icon, .select-wrapper .chevron { position: absolute; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
+        .select-wrapper .icon { left: 10px; } .select-wrapper .chevron { right: 10px; }
+        .select-custom { appearance: none; background-color: #0f172a; border: 1px solid #334155; color: #f1f5f9; padding: 0.5rem 2.5rem; border-radius: 0.5rem; width: 100%; }
+        .select-custom:focus { outline: none; border-color: #38bdf8; }
+    </style>
+</head>
+
+<body class="overflow-hidden">
+
+    <div class="flex h-screen">
+        <aside class="w-72 bg-[#1e293b] border-r border-[#334155] flex flex-col shadow-xl z-20 overflow-y-auto">
+            <div class="p-6 border-b border-[#334155]">
+                <h1 class="text-xl font-bold text-white tracking-tight">EV Growth Monitoring System <span class="text-cyan-400">in Malaysia</span></h1>
+            </div>
+
+            <div class="p-6 space-y-8">
+                <div>
+                    <h3 class="text-xs font-bold text-slate-500 uppercase mb-4 tracking-wider">Data Filters</h3>
+                    <div class="space-y-4">
+                        <div class="select-wrapper">
+                            <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg></div>
+                            <select id="state-filter" class="select-custom"><option value="All">All States</option></select>
+                            <div class="chevron"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></div>
+                        </div>
+                        <div class="select-wrapper">
+                            <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg></div>
+                            <select id="brand-filter" class="select-custom"><option value="All">All Brands</option></select>
+                            <div class="chevron"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-bold text-slate-500 uppercase mb-4 tracking-wider">Analysis Window</h3>
+                    <div class="mb-6">
+                        <div class="flex justify-between text-xs mb-2">
+                            <span class="text-cyan-400 font-semibold">Existing</span>
+                            <span class="text-slate-300 font-mono"><span id="hist-start-val">2020</span> - <span id="hist-end-val">2025</span></span>
+                        </div>
+                        <div class="range-container" id="hist-container">
+                            <div class="slider-track"></div>
+                            <div class="slider-highlight blue" id="hist-highlight"></div>
+                            <input type="range" id="hist-start" class="range-input dual blue" min="2020" max="2025" value="2020" step="1">
+                            <input type="range" id="hist-end" class="range-input dual blue" min="2020" max="2025" value="2025" step="1">
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-2">
+                            <span class="text-yellow-400 font-semibold">Forecast Limit</span>
+                            <span class="text-slate-300 font-mono" id="forecast-val">2030</span>
+                        </div>
+                        <div class="range-container">
+                            <div class="slider-track"></div>
+                            <div class="slider-highlight yellow" id="forecast-highlight"></div>
+                            <input type="range" id="forecast-limit" class="range-input single yellow" min="2025" max="2050" value="2030" step="1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-8 overflow-y-auto bg-[#0f172a]">
+            <div class="flex justify-between items-end mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-white">Executive Dashboard</h2>
+                    <p class="text-slate-400 mt-1">Real-time infrastructure and adoption analytics</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                
+                <div class="dashboard-card p-5 border-t-4 border-cyan-500 flex flex-col items-center justify-center relative">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase w-full text-left mb-2">Where Are We?</h4>
+                    <div class="relative w-full h-24 flex justify-center">
+                        <canvas id="nationalGauge"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pt-4 pointer-events-none">
+                            <span id="kpi-national-percent" class="text-2xl font-bold text-white">0%</span>
+                            <span class="text-[10px] text-slate-400">of 10000 Target</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-card p-5 border-t-4 border-blue-500">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Registrations</h4>
+                    <p id="kpi-total-registrations" class="text-3xl font-bold text-white mt-4">0</p>
+                    <p class="text-xs text-blue-400 mt-1">Vehicles</p>
+                </div>
+
+                <div class="dashboard-card p-5 border-t-4 border-green-500">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Stations</h4>
+                    <p id="kpi-filtered-stations" class="text-3xl font-bold text-white mt-4">0</p>
+                    <p class="text-xs text-green-400 mt-1">In Selected Area</p>
+                </div>
+
+                <div class="dashboard-card p-5 border-t-4 border-yellow-500">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Current EV : Charger Ratio</h4>
+                    <div class="flex justify-between items-end mt-4">
+                        <p id="kpi-ratio" class="text-3xl font-bold text-white">0:1</p>
+                        <span id="kpi-ratio-status" class="text-[10px] font-bold px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">CALC</span>
+                    </div>
+                    <p class="text-xs text-yellow-400 mt-1">Target: < 10:1</p>
+                </div>
+
+                <div class="dashboard-card p-5 border-t-4 border-purple-500">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Stations Needed</h4>
+                    <div class="flex justify-between items-end mt-4">
+                        <p id="kpi-stations-needed" class="text-3xl font-bold text-white">0</p>
+                    </div>
+                    <p class="text-xs text-purple-400 mt-1">To hit 1:10 Target in <span class="forecast-year-label">2030</span></p>
+                </div>
+
+                <div class="dashboard-card p-5 border-t-4 border-indigo-500">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Market Leader</h4>
+                    <div class="flex justify-between items-end mt-4">
+                        <p id="kpi-leader-name" class="text-2xl font-bold text-white truncate">Loading...</p>
+                        <span id="kpi-leader-share" class="text-lg font-bold text-indigo-400">0%</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">Market Share in Selection</p>
+                </div>
+
+            </div>
+
+            <div class="dashboard-card p-6 mb-8">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-white">EV Registration</h3> 
+                        <p id="chart-subtitle" class="text-sm text-slate-400">Historical vs Forecast</p>
+                    </div>
+                    <div class="flex items-center space-x-6 text-sm">
+                        <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#38bdf8] mr-2"></span> <span class="text-slate-300">Existing</span></div>
+                        <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#facc15] mr-2"></span> <span class="text-slate-300">Forecast</span></div>
+                    </div>
+                </div>
+                <div class="w-full h-[400px]">
+                    <canvas id="combinedChart"></canvas>
+                </div>
+            </div>
+
+            <div class="dashboard-card p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-white">EV Charging Station Location</h3>
+                        <p class="text-sm text-slate-400">Geospatial infrastructure analysis</p>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button id="forecast-stations-btn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-md text-xs font-medium transition-colors border border-slate-600">Forecast Gaps</button>
+                        <button id="find-me-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-xs font-medium transition-colors">Find Near Me</button>
+                    </div>
+                </div>
+                <div id="map" class="w-full h-[500px] rounded-lg border border-slate-700"></div>
+                <div class="flex items-center mt-4 gap-4 text-xs text-slate-300">
+                    <div class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>Existing Station</div>
+                    <div class="flex items-center"><span class="w-2 h-2 rounded-full bg-red-500 mr-2"></span>Your Location</div>
+                    <div id="legend-high-priority" class="hidden flex items-center"><span class="w-2 h-2 rounded-full bg-red-600 mr-2 animate-pulse"></span><span class="text-red-400 font-bold">Critical Shortage Area</span></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let allRegistrationData = [], allStationData = [];
+        let combinedChart, nationalGaugeChart, map;
+        const existingMarkersLayer = L.layerGroup();
+        const forecastMarkersLayer = L.layerGroup();
+        let isStationForecastActive = false;
+        let forecastCache = {}; 
+
+        const stateCoordinates = { "JOHOR": [1.9344, 103.3587], "KEDAH": [6.1184, 100.3685], "KELANTAN": [5.1500, 101.9758], "MELAKA": [2.1896, 102.2501], "NEGERI SEMBILAN": [2.7258, 102.2501], "PAHANG": [3.8126, 103.3256], "PERAK": [4.6930, 101.1176], "PERLIS": [6.4449, 100.2048], "PULAU PINANG": [5.4141, 100.3288], "SABAH": [5.9788, 116.0753], "SARAWAK": [1.5533, 110.3592], "SELANGOR": [3.0738, 101.5183], "TERENGGANU": [4.5305, 102.8365], "W.P. KUALA LUMPUR": [3.1390, 101.6869], "W.P. LABUAN": [5.2831, 115.2308], "W.P. PUTRAJAYA": [2.9264, 101.6964] };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            initializeMap();
+            initializeCharts(); 
+            setupHistorySlider(); 
+            setupForecastSlider();
+
+            try {
+                const response = await fetch('http://localhost:3000/api/data');
+                if (!response.ok) throw new Error(`Server returned an error: ${response.status}`);
+                const data = await response.json();
+                allRegistrationData = data.chartData;
+                allStationData = data.stationData || [];
+                populateFilters(data.filters);
+                updateNationalGauge(allStationData.length); 
+                updateAllVisuals();
+                setTimeout(() => { if(map) map.invalidateSize(); }, 500); 
+            } catch (error) { console.error("Error:", error); }
+
+            loadForecastData();
+
+            document.getElementById('state-filter').addEventListener('change', () => { updateAvailableBrands(); updateAllVisuals(); });
+            document.getElementById('brand-filter').addEventListener('change', updateAllVisuals);
+            document.getElementById('hist-start').addEventListener('input', updateAllVisuals);
+            document.getElementById('hist-end').addEventListener('input', updateAllVisuals);
+            document.getElementById('forecast-limit').addEventListener('input', updateAllVisuals);
+            document.getElementById('find-me-btn').addEventListener('click', findUserLocation);
+            
+            const btn = document.getElementById('forecast-stations-btn');
+            btn.addEventListener('click', () => {
+                isStationForecastActive = !isStationForecastActive;
+                btn.textContent = isStationForecastActive ? "Hide Forecast" : "Forecast Gap Analysis";
+                if (isStationForecastActive) { btn.className = "px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-slate-900 rounded-md text-xs font-bold transition-colors"; } 
+                else { btn.className = "px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-md text-xs font-medium transition-colors border border-slate-600"; }
+                document.getElementById('legend-high-priority').classList.toggle('hidden');
+                updateMap();
+            });
+        });
+
+        function updateAllVisuals() {
+            if (combinedChart) updateCombinedChart(); 
+            if (map) updateMap();
+            updateForecastKPIs();
+            // ADDED: Call the Market Leader Logic
+            updateMarketLeader();
+        }
+
+        // ADDED: Logic for Market Leader (Option 5)
+        function updateMarketLeader() {
+            const state = document.getElementById('state-filter').value;
+            const brandFilter = document.getElementById('brand-filter').value;
+
+            // 1. Get relevant data based on current filters
+            // Note: If a user filters for "BYD", BYD will obviously be 100% leader. 
+            // This is intended behavior for "What is the leader in THIS view?"
+            const relevantData = allRegistrationData.filter(d => 
+                (state === 'All' || d.state === state) && 
+                (brandFilter === 'All' || d.brand === brandFilter)
+            );
+
+            if (relevantData.length === 0) {
+                 document.getElementById('kpi-leader-name').textContent = "-";
+                 document.getElementById('kpi-leader-share').textContent = "0%";
+                 return;
+            }
+
+            // 2. Count by brand
+            const brandCounts = {};
+            let totalCount = 0;
+            relevantData.forEach(d => {
+                const b = d.brand;
+                const count = parseInt(d.registrations);
+                brandCounts[b] = (brandCounts[b] || 0) + count;
+                totalCount += count;
+            });
+
+            // 3. Find Max
+            let maxBrand = "";
+            let maxCount = 0;
+
+            for (const [b, count] of Object.entries(brandCounts)) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    maxBrand = b;
+                }
+            }
+
+            // 4. Update DOM
+            const share = totalCount > 0 ? ((maxCount / totalCount) * 100).toFixed(1) : 0;
+            document.getElementById('kpi-leader-name').textContent = maxBrand;
+            document.getElementById('kpi-leader-share').textContent = `${share}%`;
+        }
+
+        function updateForecastKPIs() {
+            const state = document.getElementById('state-filter').value;
+            const brand = document.getElementById('brand-filter').value;
+            const fLimit = parseInt(document.getElementById('forecast-limit').value);
+            
+            document.querySelectorAll('.forecast-year-label').forEach(el => el.textContent = fLimit);
+
+            const histTotal = allRegistrationData
+                .filter(d => (state === 'All' || d.state === state) && (brand === 'All' || d.brand === brand))
+                .reduce((acc, curr) => acc + parseInt(curr.registrations), 0);
+
+            let forecastAdded = 0;
+            if (Object.keys(forecastCache).length > 0) {
+                const sKey = (state === 'All' || state.includes('All')) ? 'All' : state.toUpperCase().trim();
+                const bKey = (brand === 'All' || brand.includes('All')) ? 'All' : brand.toUpperCase().trim();
+                const raw = forecastCache[`${sKey}_${bKey}`] || [];
+                
+                raw.forEach(point => {
+                    const pYear = parseInt(point[0].substring(0, 4));
+                    if (pYear <= fLimit) {
+                        forecastAdded += point[1];
+                    }
+                });
+            }
+
+            const totalProjectedEVs = histTotal + forecastAdded;
+            const stationsNeeded = Math.ceil(totalProjectedEVs / 10);
+            document.getElementById('kpi-stations-needed').textContent = stationsNeeded.toLocaleString();
+        }
+
+        function initializeCharts() {
+            Chart.defaults.color = '#94a3b8'; Chart.defaults.borderColor = '#334155';
+            const ctx1 = document.getElementById('combinedChart').getContext('2d');
+            combinedChart = new Chart(ctx1, { type: 'line', data: { labels: [], datasets: [{ label: 'Existing', borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.1)', borderWidth: 2, tension: 0.1, fill: true }, { label: 'Forecast', borderColor: '#facc15', borderDash: [6, 4], borderWidth: 2, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', titleColor: '#fff', bodyColor: '#cbd5e1', borderColor: '#334155', borderWidth: 1 } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#334155', borderDash: [2, 2] } } } } });
+            const ctx2 = document.getElementById('nationalGauge').getContext('2d');
+            nationalGaugeChart = new Chart(ctx2, { type: 'doughnut', data: { labels: ['Completed', 'Remaining'], datasets: [{ data: [0, 10000], backgroundColor: ['#38bdf8', '#334155'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, rotation: -90, circumference: 180, cutout: '85%', plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
+        }
+
+        function updateNationalGauge(totalStations) {
+            const target = 10000;
+            const percent = Math.min(100, (totalStations / target) * 100).toFixed(1);
+            document.getElementById('kpi-national-percent').textContent = `${percent}%`;
+            if (nationalGaugeChart) {
+                nationalGaugeChart.data.datasets[0].data = [totalStations, target - totalStations];
+                nationalGaugeChart.update();
+            }
+        }
+
+        function setupHistorySlider() {
+            const s = document.getElementById('hist-start'), e = document.getElementById('hist-end'), h = document.getElementById('hist-highlight'), c = document.getElementById('hist-container');
+            function up() {
+                if(parseInt(e.value) - parseInt(s.value) < 1) { if(this === s) s.value = e.value - 1; else e.value = s.value + 1; }
+                document.getElementById('hist-start-val').textContent = s.value; document.getElementById('hist-end-val').textContent = e.value;
+                const p1 = ((s.value-s.min)/(s.max-s.min))*100, p2 = ((e.value-e.min)/(e.max-e.min))*100;
+                h.style.left = p1+"%"; h.style.width = (p2-p1)+"%";
+            }
+            function zIndex(ev) {
+                const r = s.getBoundingClientRect(), cx = ev.touches?ev.touches[0].clientX:ev.clientX, rel = (cx-r.left)/r.width;
+                const min = parseInt(s.min), max = parseInt(s.max), sp = (parseInt(s.value)-min)/(max-min), ep = (parseInt(e.value)-min)/(max-min);
+                if(Math.abs(rel-sp) < Math.abs(rel-ep)) { s.style.zIndex="10"; e.style.zIndex="5"; } else { s.style.zIndex="5"; e.style.zIndex="10"; }
+            }
+            s.addEventListener('input', up); e.addEventListener('input', up); c.addEventListener('mousemove', zIndex); c.addEventListener('touchstart', zIndex); up();
+        }
+
+        function setupForecastSlider() {
+            const el = document.getElementById('forecast-limit'), h = document.getElementById('forecast-highlight');
+            function up() { document.getElementById('forecast-val').textContent = el.value; h.style.width = ((el.value-el.min)/(el.max-el.min))*100 + "%"; }
+            el.addEventListener('input', up); up();
+        }
+
+        function updateCombinedChart() {
+            if (!combinedChart) return;
+            const brand = document.getElementById('brand-filter').value;
+            const state = document.getElementById('state-filter').value;
+            const hStart = parseInt(document.getElementById('hist-start').value);
+            const hEnd = parseInt(document.getElementById('hist-end').value);
+            const fLimit = parseInt(document.getElementById('forecast-limit').value);
+
+            const filteredHistory = allRegistrationData.filter(d => {
+                const y = parseInt(d.month.split('-')[0]);
+                return (state === 'All' || d.state === state) && (brand === 'All' || d.brand === brand) && (y >= hStart && y <= hEnd);
+            });
+
+            const aggHist = filteredHistory.reduce((acc, curr) => { acc[curr.month] = (acc[curr.month] || 0) + parseInt(curr.registrations); return acc; }, {});
+            const hLabels = Object.keys(aggHist).sort();
+            const hData = hLabels.map(l => aggHist[l]);
+
+            let fData = [], fLabels = [];
+            if (Object.keys(forecastCache).length > 0) {
+                const sKey = (state === 'All' || state.includes('All')) ? 'All' : state.toUpperCase().trim();
+                const bKey = (brand === 'All' || brand.includes('All')) ? 'All' : brand.toUpperCase().trim();
+                const raw = forecastCache[`${sKey}_${bKey}`] || [];
+                const filtered = raw.filter(p => parseInt(p[0].substring(0, 4)) <= fLimit);
+                fLabels = filtered.map(p => p[0].substring(0, 7));
+                fData = filtered.map(p => p[1]);
+            }
+
+            const allLabels = [...new Set([...hLabels, ...fLabels])].sort();
+            combinedChart.data.labels = allLabels;
+            combinedChart.data.datasets[0].data = allLabels.map(l => { const i = hLabels.indexOf(l); return i !== -1 ? hData[i] : null; });
+            combinedChart.data.datasets[1].data = allLabels.map(l => { const i = fLabels.indexOf(l); return i !== -1 ? fData[i] : null; });
+            combinedChart.update();
+
+            const totalReg = hData.reduce((a, b) => a + b, 0) || 0;
+            document.getElementById('kpi-total-registrations').textContent = totalReg.toLocaleString();
+            document.getElementById('chart-subtitle').textContent = `${brand === 'All' ? 'All Brands' : brand} • ${state === 'All' ? 'Malaysia' : state} (${hStart}-${fLimit})`;
+        }
+
+        function updateMap() {
+            if (!map) return;
+            const state = document.getElementById('state-filter').value;
+            const fLimit = parseInt(document.getElementById('forecast-limit').value);
+            existingMarkersLayer.clearLayers(); 
+            forecastMarkersLayer.clearLayers();
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+                attribution: '© OpenStreetMap contributors', 
+                maxZoom: 19 
+            }).addTo(map);
+
+            const blueIcon = new L.Icon({ 
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', 
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', 
+                iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] 
+            });
+
+            let visible = 0;
+            allStationData.forEach(s => {
+                if (state === 'All' || s.state === state) {
+                    if (!isNaN(parseFloat(s.latitude))) {
+                        const googleMapsUrl = `https://www.google.com/maps?q=${s.latitude},${s.longitude}`;
+                        const m = L.marker([s.latitude, s.longitude], { icon: blueIcon }).bindPopup(`
+                            <b style="color:#0f172a; font-size:13px;">${s.name}</b>
+                            <a href="${googleMapsUrl}" target="_blank" class="map-popup-link">Open in Google Maps</a>
+                        `);
+                        existingMarkersLayer.addLayer(m);
+                        visible++;
+                    }
+                }
+            });
+            document.getElementById('kpi-filtered-stations').textContent = visible.toLocaleString();
+
+            const totalReg = parseInt(document.getElementById('kpi-total-registrations').textContent.replace(/,/g, '')) || 0;
+            const ratio = visible > 0 ? Math.round(totalReg / visible) : 0;
+            const rEl = document.getElementById('kpi-ratio'), sEl = document.getElementById('kpi-ratio-status');
+            
+            rEl.textContent = `${ratio}:1`;
+            if(ratio==0) { sEl.textContent="N/A"; sEl.className="text-[10px] font-bold px-2 py-1 rounded bg-slate-700 text-slate-400"; }
+            else if(ratio<10) { sEl.textContent="EXCELLENT"; sEl.className="text-[10px] font-bold px-2 py-1 rounded bg-green-900 text-green-400 border border-green-700"; }
+            else if(ratio<50) { sEl.textContent="STRAINED"; sEl.className="text-[10px] font-bold px-2 py-1 rounded bg-yellow-900 text-yellow-400 border border-yellow-700"; }
+            else { sEl.textContent="CRITICAL"; sEl.className="text-[10px] font-bold px-2 py-1 rounded bg-red-900 text-red-400 border border-red-700"; }
+
+            if (isStationForecastActive) { plotStationForecast(state, fLimit); }
+        }
+
+        function findUserLocation() { 
+            if ("geolocation" in navigator) { 
+                navigator.geolocation.getCurrentPosition((pos) => { 
+                    map.setView([pos.coords.latitude, pos.coords.longitude], 13); 
+                    const redIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+                    L.marker([pos.coords.latitude, pos.coords.longitude], {icon: redIcon}).addTo(map).bindPopup(`<b style="color:#000000">You are here</b>`).openPopup(); 
+                }, (e) => alert("Error: " + e.message)); 
+            } else { alert("Geolocation is not supported."); } 
+        }
+
+        async function loadForecastData() { try { const r = await fetch('forecast_advanced.json'); if(!r.ok) throw new Error(); forecastCache = await r.json(); updateCombinedChart(); updateForecastKPIs(); updateMarketLeader(); } catch(e){} }
+        function populateFilters(d) { 
+            const bf = document.getElementById('brand-filter'); d.brands.forEach(b => { const o = document.createElement('option'); o.value = b; o.textContent = b; bf.appendChild(o); });
+            const sf = document.getElementById('state-filter'); d.states.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sf.appendChild(o); });
+        }
+        function updateAvailableBrands() {
+            const s = document.getElementById('state-filter').value, bf = document.getElementById('brand-filter'), cur = bf.value;
+            const rel = (s === 'All') ? allRegistrationData : allRegistrationData.filter(d => d.state === s);
+            const brands = [...new Set(rel.map(d => d.brand))].sort();
+            bf.innerHTML = '<option value="All">All Brands</option>';
+            brands.forEach(b => { const o = document.createElement('option'); o.value = b; o.textContent = b; bf.appendChild(o); });
+            bf.value = brands.includes(cur) ? cur : 'All';
+        }
+        function aggregateDataByMonth(d) { return d.reduce((acc, c) => { const m = c.month; acc[m] = (acc[m] || 0) + parseInt(c.registrations); return acc; }, {}); }
+        function initializeMap() { 
+            map = L.map('map', {zoomControl: false}).setView([4.2105, 101.9758], 6); 
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+                attribution: '© OpenStreetMap contributors', 
+                maxZoom: 19 
+            }).addTo(map); 
+            existingMarkersLayer.addTo(map); forecastMarkersLayer.addTo(map); 
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+        }
+        function plotStationForecast(stateFilter, year) {
+            const stationCounts = {};
+            allStationData.forEach(s => { 
+                const n = s.state ? s.state.toUpperCase().trim() : "UNKNOWN"; 
+                stationCounts[n] = (stationCounts[n] || 0) + 1; 
+            });
+
+            Object.keys(stateCoordinates).forEach(s => {
+                if(stateFilter !== 'All' && s !== stateFilter) return;
+
+                const historicalTotal = allRegistrationData
+                    .filter(d => d.state === s)
+                    .reduce((sum, d) => sum + parseInt(d.registrations), 0);
+
+                const lookupKey = `${s}_All`; 
+                const forecastData = forecastCache[lookupKey] || [];
+                
+                let futureAdded = 0;
+                if (forecastData.length > 0) {
+                    forecastData.forEach(point => {
+                        const pYear = parseInt(point[0].substring(0, 4));
+                        if (pYear <= year) {
+                            futureAdded += point[1]; 
+                        }
+                    });
+                }
+
+                const totalProjectedEVs = historicalTotal + futureAdded;
+                const stations = stationCounts[s] || 0;
+                const ratio = stations > 0 ? Math.round(totalProjectedEVs / stations) : totalProjectedEVs;
+
+                let col='#22c55e', rad=10000; 
+                if(ratio > 200){ col='#ef4444'; rad=30000; } 
+                else if(ratio > 100){ col='#eab308'; rad=20000; } 
+
+                const c = L.circle(stateCoordinates[s], {
+                    color: col, fillColor: col, fillOpacity: 0.4, radius: rad, weight: 1
+                }).bindPopup(`
+                    <b style="color:#0f172a">${s}</b><br>
+                    Target Year: <b>${year}</b><br>
+                    Est. Total EVs: <b>${totalProjectedEVs.toLocaleString()}</b><br>
+                    Stations: <b>${stations}</b><br>
+                    Ratio: <b>${ratio}:1</b>
+                `);
+                forecastMarkersLayer.addLayer(c);
+            });
+        }
+    </script>
+</body>
+</html>
